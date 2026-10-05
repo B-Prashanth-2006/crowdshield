@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Switch, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Switch } from 'react-native';
+import { Alert } from '@/utils/alert';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/auth';
 import { useAppPreferencesStore } from '@/store/preferences';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
-import { User, Shield, Info, Download, Trash2, Key, Bell, ShieldAlert, LogOut } from 'lucide-react-native';
+import { User, Shield, Info, Download, Trash2, Key, Bell, ShieldAlert, LogOut, FileText } from 'lucide-react-native';
+import { AccountDataExportModal } from '@/components/account-data-export-modal';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -21,6 +23,7 @@ export default function ProfileScreen() {
   const [phone, setPhone] = useState(user?.phone || '');
   const [bloodGroup, setBloodGroup] = useState(user?.blood_group || '');
   const [notes, setNotes] = useState(user?.emergency_notes || '');
+  const [exportModalVisible, setExportModalVisible] = useState(false);
 
   const handleUpdateProfile = async () => {
     const success = await updateProfile({
@@ -35,10 +38,7 @@ export default function ProfileScreen() {
   };
 
   const handleDownloadData = () => {
-    Alert.alert(
-      'Export Complete',
-      'All stored profile logs, check-ins, location history, and reports have been compiled into a secure ZIP file and downloaded to your device.'
-    );
+    setExportModalVisible(true);
   };
 
   const handleDeleteReports = () => {
@@ -393,10 +393,24 @@ export default function ProfileScreen() {
 
           {/* Download */}
           <TouchableOpacity style={styles.privacyItem} onPress={handleDownloadData}>
-            <Download size={20} color={theme.primary} />
+            <FileText size={20} color={theme.primary} />
             <View style={styles.privacyTextWrap}>
-              <Text style={styles.privacyTitle}>Request Account Data</Text>
-              <Text style={styles.privacyDesc}>Download a copy of your personal data file.</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.privacyTitle}>Request Account Data & Logs</Text>
+                <View
+                  style={{
+                    backgroundColor: theme.primaryLight,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: theme.primary }}>.PDF</Text>
+                </View>
+              </View>
+              <Text style={styles.privacyDesc}>
+                Summarize & download your profile, emergency contacts, SOS alerts, trips, and reports in a signed PDF document.
+              </Text>
             </View>
           </TouchableOpacity>
 
@@ -425,6 +439,12 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Log Out Account</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Account Data & Safety Audit PDF Export Modal */}
+      <AccountDataExportModal
+        visible={exportModalVisible}
+        onClose={() => setExportModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }

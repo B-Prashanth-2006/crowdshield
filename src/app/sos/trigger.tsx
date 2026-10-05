@@ -3,20 +3,29 @@ import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, BackHandler } f
 import { useRouter } from 'expo-router';
 import { useSOSStore } from '@/store/sos';
 import { useAuthStore } from '@/store/auth';
+import { useContactStore } from '@/store/contacts';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
-import { X, ShieldAlert, Heart, Flame, Shield, Car, AlertOctagon, HelpCircle } from 'lucide-react-native';
+import { X, ShieldAlert, Heart, Flame, Shield, Car, AlertOctagon, HelpCircle, PhoneCall } from 'lucide-react-native';
+import { makePhoneCall } from '@/utils/communication';
 
 export default function SOSTriggerScreen() {
   const router = useRouter();
   const theme = useTheme();
-  
+
   const { user } = useAuthStore();
-  const { 
-    isTriggering, countdown, selectedType, 
-    startSOSCountdown, cancelSOSCountdown, 
-    triggerSOSDirectly, activeSOS 
+  const { contacts } = useContactStore();
+  const {
+    isTriggering,
+    countdown,
+    selectedType,
+    startSOSCountdown,
+    cancelSOSCountdown,
+    triggerSOSDirectly,
+    activeSOS,
   } = useSOSStore();
+
+  const primaryContact = contacts[0];
 
   // Handle Android back button during countdown
   useEffect(() => {
@@ -62,6 +71,15 @@ export default function SOSTriggerScreen() {
     router.back();
   };
 
+  const handleEmergencyCall = async () => {
+    cancelSOSCountdown();
+    if (primaryContact) {
+      await makePhoneCall(primaryContact.phone, primaryContact.name);
+    } else {
+      await makePhoneCall('911', 'Emergency Services');
+    }
+  };
+
   const emergencyTypes = [
     { name: 'Threat/Crime', icon: <Shield size={24} color="#FFFFFF" />, bg: '#1E3A8A' },
     { name: 'Medical', icon: <Heart size={24} color="#FFFFFF" />, bg: '#DC2626' },
@@ -85,7 +103,7 @@ export default function SOSTriggerScreen() {
     },
     sosHeader: {
       alignItems: 'center',
-      marginBottom: Spacing.four,
+      marginBottom: Spacing.three,
     },
     sosTitle: {
       color: '#FFFFFF',
@@ -104,18 +122,18 @@ export default function SOSTriggerScreen() {
     },
     // Circle timer
     countdownCircle: {
-      width: 160,
-      height: 160,
-      borderRadius: 80,
+      width: 150,
+      height: 150,
+      borderRadius: 75,
       borderWidth: 6,
       borderColor: theme.danger,
       alignItems: 'center',
       justifyContent: 'center',
-      marginVertical: Spacing.five,
+      marginVertical: Spacing.four,
     },
     countdownNumber: {
       color: '#FFFFFF',
-      fontSize: 72,
+      fontSize: 68,
       fontWeight: '900',
     },
     // Emergency selector Grid
@@ -132,12 +150,12 @@ export default function SOSTriggerScreen() {
       flexWrap: 'wrap',
       justifyContent: 'center',
       gap: Spacing.three,
-      marginBottom: Spacing.five,
+      marginBottom: Spacing.four,
       width: '100%',
     },
     gridItem: {
       width: '45%',
-      height: 64,
+      height: 60,
       borderRadius: 12,
       flexDirection: 'row',
       alignItems: 'center',
@@ -149,22 +167,44 @@ export default function SOSTriggerScreen() {
       fontSize: 13,
       fontWeight: '700',
     },
-    // Footer button
+    // Footer button row
+    footerRow: {
+      flexDirection: 'row',
+      gap: Spacing.three,
+      width: '100%',
+      justifyContent: 'center',
+    },
     cancelBtn: {
       backgroundColor: '#334155',
-      borderRadius: 16,
+      borderRadius: 14,
       paddingVertical: Spacing.three,
-      paddingHorizontal: Spacing.six,
+      paddingHorizontal: Spacing.four,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: Spacing.two,
-      minWidth: 160,
+      flex: 1,
     },
     cancelBtnText: {
       color: '#FFFFFF',
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: '700',
+    },
+    quickDialBtn: {
+      backgroundColor: theme.danger,
+      borderRadius: 14,
+      paddingVertical: Spacing.three,
+      paddingHorizontal: Spacing.four,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.two,
+      flex: 1,
+    },
+    quickDialBtnText: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '800',
     },
   });
 
@@ -172,7 +212,7 @@ export default function SOSTriggerScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.sosHeader}>
-          <ShieldAlert size={48} color={theme.danger} />
+          <ShieldAlert size={44} color={theme.danger} />
           <Text style={styles.sosTitle}>SOS Emergency</Text>
           <Text style={styles.sosSubtitle}>
             Activating {selectedType} Alert. We will notify family, local authorities, and begin location tracking.
@@ -214,10 +254,19 @@ export default function SOSTriggerScreen() {
           })}
         </View>
 
-        <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-          <X size={20} color="#FFFFFF" />
-          <Text style={styles.cancelBtnText}>Cancel Alert</Text>
-        </TouchableOpacity>
+        <View style={styles.footerRow}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+            <X size={18} color="#FFFFFF" />
+            <Text style={styles.cancelBtnText}>Cancel Alert</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.quickDialBtn} onPress={handleEmergencyCall}>
+            <PhoneCall size={18} color="#FFFFFF" />
+            <Text style={styles.quickDialBtnText}>
+              {primaryContact ? `Call ${primaryContact.name.split(' ')[0]}` : 'Call 911'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );

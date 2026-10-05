@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, SafeAreaView, FlatList, Share, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, SafeAreaView, FlatList, Share } from 'react-native';
+import { Alert } from '@/utils/alert';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/auth';
 import { useSOSStore } from '@/store/sos';
@@ -7,7 +8,7 @@ import { useCheckInStore } from '@/store/checkin';
 import { useIncidentStore } from '@/store/incident';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
-import { Shield, AlertCircle, ShieldAlert, ShieldCheck, MapPin, Send, HelpCircle, Eye, Settings } from 'lucide-react-native';
+import { Shield, AlertCircle, ShieldAlert, ShieldCheck, MapPin, Send, HelpCircle, Eye, Settings, PhoneCall } from 'lucide-react-native';
 
 export default function HomeDashboardScreen() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function HomeDashboardScreen() {
   const { activeCheckIn } = useCheckInStore();
   const { incidents } = useIncidentStore();
 
-  const activeAlerts = incidents.filter((inc) => inc.status === 'Verified' || inc.status === 'Under Review');
+  const activeAlerts = incidents.filter((inc) => inc.status === 'Submitted' || inc.status === 'Verified' || inc.status === 'Under Review');
 
   const handleSOSPress = () => {
     // Navigate to the transparent SOS trigger overlays
@@ -273,6 +274,11 @@ export default function HomeDashboardScreen() {
           <TouchableOpacity style={styles.actionItem} onPress={handleShareLocation}>
             <Send size={24} color={theme.primary} />
             <Text style={styles.actionText}>Broadcast Coordinates</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/(tabs)/contacts')}>
+            <PhoneCall size={24} color={theme.danger} />
+            <Text style={styles.actionText}>Contacts & SOS Call/SMS</Text>
           </TouchableOpacity>
 
           {(user?.role === 'moderator' || user?.role === 'admin') && (

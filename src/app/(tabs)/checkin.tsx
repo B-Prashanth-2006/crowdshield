@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, SafeAreaView, ScrollView, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import { Alert } from '@/utils/alert';
 import { useCheckInStore } from '@/store/checkin';
 import { useAuthStore } from '@/store/auth';
 import { useContactStore } from '@/store/contacts';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
-import { MapPin, Clock, ShieldCheck, AlertOctagon, Power, Play } from 'lucide-react-native';
+import { MapPin, Clock, ShieldCheck, AlertOctagon, Power, Play, Phone, Send, PhoneCall } from 'lucide-react-native';
+import { makePhoneCall, sendSMSMessage } from '@/utils/communication';
+import { EmergencyContactActionModal } from '@/components/emergency-contact-action-modal';
+import { EmergencyContact } from '@/types';
 
 export default function CheckInScreen() {
   const theme = useTheme();
@@ -16,6 +20,11 @@ export default function CheckInScreen() {
   const [destination, setDestination] = useState('');
   const [etaVal, setEtaVal] = useState('15'); // 15 mins default
   const [remainingSecs, setRemainingSecs] = useState(0);
+
+  // Modal State for calling and SMS
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<EmergencyContact | null>(null);
+  const [isBroadcast, setIsBroadcast] = useState(false);
 
   // Parse remaining seconds if trip is active
   useEffect(() => {
@@ -285,11 +294,44 @@ export default function CheckInScreen() {
             ) : (
               contacts.map((c) => (
                 <View key={c.id} style={styles.contactRow}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.contactName}>{c.name}</Text>
                     <Text style={styles.contactPhone}>{c.phone}</Text>
                   </View>
-                  <ShieldCheck size={18} color={theme.success} style={{ marginLeft: 'auto' }} />
+                  <View style={{ flexDirection: 'row', gap: Spacing.two, alignItems: 'center' }}>
+                    <TouchableOpacity
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: theme.primaryLight,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      onPress={async () => await makePhoneCall(c.phone, c.name)}
+                      activeOpacity={0.7}
+                    >
+                      <Phone size={14} color={theme.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: theme.successLight,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      onPress={() => {
+                        setSelectedContact(c);
+                        setIsBroadcast(false);
+                        setModalVisible(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Send size={14} color={theme.success} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))
             )}
@@ -355,14 +397,60 @@ export default function CheckInScreen() {
                   backgroundColor: theme.dangerLight,
                   borderColor: theme.danger,
                   borderWidth: 1,
-                  borderRadius: 8,
-                  padding: 12,
+                  borderRadius: 12,
+                  padding: 14,
                   marginBottom: Spacing.four,
+                  width: '100%',
                 }}
               >
-                <Text style={{ color: theme.danger, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
-                  WARNING: Arrival deadline passed. Your contacts have been alerted. Check in safe now to cancel.
+                <Text style={{ color: theme.danger, fontSize: 13, fontWeight: '700', textAlign: 'center', marginBottom: 10 }}>
+                  WARNING: Arrival deadline passed. Please alert your contacts or check in safe.
                 </Text>
+                <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      backgroundColor: theme.danger,
+                      borderRadius: 10,
+                      paddingVertical: 10,
+                      alignItems: 'center',
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      gap: 6,
+                    }}
+                    onPress={() => {
+                      setSelectedContact(null);
+                      setIsBroadcast(true);
+                      setModalVisible(true);
+                    }}
+                  >
+                    <Send size={14} color="#FFFFFF" />
+                    <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>SMS Contacts</Text>
+                  </TouchableOpacity>
+
+                  {contacts[0] && (
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: theme.danger,
+                        borderRadius: 10,
+                        paddingVertical: 10,
+                        alignItems: 'center',
+                        flexDirection: 'row',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                      onPress={async () => await makePhoneCall(contacts[0].phone, contacts[0].name)}
+                    >
+                      <PhoneCall size={14} color={theme.danger} />
+                      <Text style={{ color: theme.danger, fontSize: 12, fontWeight: '800' }}>
+                        Call {contacts[0].name.split(' ')[0]}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             )}
 
@@ -383,6 +471,16 @@ export default function CheckInScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Emergency Contact Action Modal for Call & SMS */}
+      <EmergencyContactActionModal
+        visible={modalVisible}
+        contact={selectedContact}
+        allContacts={contacts}
+        isBroadcast={isBroadcast}
+        alertType="Safe Trip Check-in Alert"
+        onClose={() => setModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }

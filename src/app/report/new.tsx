@@ -1,16 +1,36 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Switch, ActivityIndicator, Alert, Image } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  SafeAreaView,
+  Switch,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useIncidentStore } from '@/store/incident';
 import { useAuthStore } from '@/store/auth';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
-import { AlertCircle, Camera, ShieldAlert, Sparkles, ChevronLeft, MapPin } from 'lucide-react-native';
+import {
+  AlertCircle,
+  Camera,
+  ShieldAlert,
+  Sparkles,
+  ChevronLeft,
+  MapPin,
+  CheckCircle2,
+} from 'lucide-react-native';
+import { Alert } from '@/utils/alert';
 
 export default function NewReportScreen() {
   const router = useRouter();
   const theme = useTheme();
-  
+
   const { user } = useAuthStore();
   const { reportIncident, simulateAICategorization, isLoading } = useIncidentStore();
 
@@ -18,6 +38,7 @@ export default function NewReportScreen() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [locationName, setLocationName] = useState('Market St & 8th St, San Francisco');
   const [mockMediaUrl, setMockMediaUrl] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // AI Assessment State
   const [aiRunning, setAiRunning] = useState(false);
@@ -29,14 +50,15 @@ export default function NewReportScreen() {
   } | null>(null);
 
   const handleSimulateAI = async () => {
-    if (!description || description.trim().length < 10) {
-      Alert.alert('Details Needed', 'Please enter a description (at least 10 characters) for the AI to assess.');
+    if (!description || description.trim().length < 3) {
+      setErrorMessage('Please enter at least 3 characters describing the incident.');
       return;
     }
+    setErrorMessage(null);
 
     setAiRunning(true);
     try {
-      const assessment = await simulateAICategorization(description);
+      const assessment = await simulateAICategorization(description.trim());
       setAiData(assessment as any);
     } catch (err) {
       Alert.alert('AI Assessment Failed', 'Could not parse incident content.');
@@ -47,40 +69,72 @@ export default function NewReportScreen() {
 
   const handleSimulateCamera = () => {
     // Inject a realistic hazard stock photo
-    setMockMediaUrl('https://images.unsplash.com/photo-1508873696983-2df519f0397e?q=80&w=300&auto=format&fit=crop');
+    setMockMediaUrl(
+      'https://images.unsplash.com/photo-1508873696983-2df519f0397e?q=80&w=300&auto=format&fit=crop'
+    );
     Alert.alert('Camera Attached', 'Simulated camera photo attached successfully.');
   };
 
   const handleSubmit = async () => {
-    if (!description) {
-      Alert.alert('Missing Field', 'Please describe the incident.');
+    if (!description || description.trim().length < 3) {
+      setErrorMessage('Please describe what is happening (at least 3 characters).');
       return;
     }
-    if (!aiData) {
-      Alert.alert('AI Review Required', 'Please run the AI Assessment before submitting so details can be categorized.');
-      return;
+    setErrorMessage(null);
+
+    let assessment = aiData;
+
+    // If user hasn't explicitly clicked Run AI Assessment, automatically run it now
+    if (!assessment) {
+      setAiRunning(true);
+      try {
+        assessment = (await simulateAICategorization(description.trim())) as any;
+        setAiData(assessment);
+      } catch (err) {
+        assessment = {
+          category: 'Other',
+          urgency: 'Medium',
+          summary: description.trim(),
+          safety_actions: [
+            'Maintain situational awareness.',
+            'Contact local authorities if immediate help is required.',
+          ],
+        };
+      } finally {
+        setAiRunning(false);
+      }
     }
+
+    if (!assessment) return;
 
     const success = await reportIncident(
       user?.id || null,
       user?.name || 'Anonymous Member',
       {
-        category: aiData.category,
-        description,
+        category: assessment.category,
+        description: description.trim(),
         latitude: 37.7793,
         longitude: -122.4192,
-        location_name: locationName,
+        location_name: locationName.trim() || 'Market St & 8th St, San Francisco',
         is_anonymous: isAnonymous,
-        urgency: aiData.urgency,
-        summary: aiData.summary,
-        safety_actions: aiData.safety_actions,
+        urgency: assessment.urgency,
+        summary: assessment.summary,
+        safety_actions: assessment.safety_actions,
       },
       mockMediaUrl ? [mockMediaUrl] : []
     );
 
     if (success) {
-      Alert.alert('Report Submitted', 'Your incident report has been submitted for review. It will show on the alerts feed once verified.');
-      router.replace('/(tabs)/map');
+      Alert.alert(
+        'Report Submitted',
+        'Your incident report has been submitted for review and pinned to the alerts feed.',
+        [
+          {
+            text: 'View on Map',
+            onPress: () => router.replace('/(tabs)/map'),
+          },
+        ]
+      );
     } else {
       Alert.alert('Submission Failed', 'Could not submit report to database.');
     }
@@ -88,10 +142,14 @@ export default function NewReportScreen() {
 
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
-      case 'Critical': return theme.danger;
-      case 'High': return theme.warning;
-      case 'Medium': return theme.primary;
-      default: return theme.success;
+      case 'Critical':
+        return theme.danger;
+      case 'High':
+        return theme.warning;
+      case 'Medium':
+        return theme.primary;
+      default:
+        return theme.success;
     }
   };
 
@@ -128,14 +186,26 @@ export default function NewReportScreen() {
     input: {
       backgroundColor: theme.backgroundElement,
       borderWidth: 1,
-      borderColor: theme.border,
+      borderColor: errorMessage ? theme.danger : theme.border,
       borderRadius: 12,
       padding: Spacing.three,
       color: theme.text,
       fontSize: 15,
       minHeight: 100,
       textAlignVertical: 'top',
+      marginBottom: Spacing.two,
+    },
+    errorContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
       marginBottom: Spacing.three,
+      paddingHorizontal: 4,
+    },
+    errorText: {
+      color: theme.danger,
+      fontSize: 13,
+      fontWeight: '600',
     },
     locContainer: {
       flexDirection: 'row',
@@ -288,13 +358,22 @@ export default function NewReportScreen() {
         <Text style={styles.label}>What is happening?</Text>
         <TextInput
           style={styles.input}
-          placeholder="Describe the incident (e.g. A small fire started in the dumpster near the bank. High winds, heavy black smoke...)"
+          placeholder="Describe the incident (e.g. Robbery, active fire, accident...)"
           placeholderTextColor={theme.textSecondary}
           value={description}
-          onChangeText={setDescription}
+          onChangeText={(txt) => {
+            setDescription(txt);
+            if (errorMessage) setErrorMessage(null);
+          }}
           multiline
           numberOfLines={4}
         />
+        {errorMessage && (
+          <View style={styles.errorContainer}>
+            <AlertCircle size={16} color={theme.danger} />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        )}
 
         <Text style={styles.label}>Location / Landmark</Text>
         <View style={styles.locContainer}>
@@ -325,7 +404,10 @@ export default function NewReportScreen() {
         <Text style={styles.label}>Evidence (Photo/Video)</Text>
         {mockMediaUrl ? (
           <View style={{ position: 'relative', marginBottom: Spacing.four }}>
-            <Image source={{ uri: mockMediaUrl }} style={{ width: '100%', height: 160, borderRadius: 12 }} />
+            <Image
+              source={{ uri: mockMediaUrl }}
+              style={{ width: '100%', height: 160, borderRadius: 12 }}
+            />
             <TouchableOpacity
               style={{
                 position: 'absolute',
@@ -348,7 +430,12 @@ export default function NewReportScreen() {
         )}
 
         {/* AI Categorizer Trigger */}
-        <TouchableOpacity style={styles.aiBtn} onPress={handleSimulateAI} disabled={aiRunning}>
+        <TouchableOpacity
+          style={styles.aiBtn}
+          onPress={handleSimulateAI}
+          disabled={aiRunning || isLoading}
+          activeOpacity={0.8}
+        >
           {aiRunning ? (
             <ActivityIndicator color={theme.primary} />
           ) : (
@@ -367,13 +454,17 @@ export default function NewReportScreen() {
                 <Sparkles size={18} color={theme.primary} />
                 <Text style={styles.aiTitle}>AI Safety Review</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: getUrgencyColor(aiData.urgency) }]}>
+              <View
+                style={[styles.badge, { backgroundColor: getUrgencyColor(aiData.urgency) }]}
+              >
                 <Text style={styles.badgeText}>{aiData.urgency}</Text>
               </View>
             </View>
 
             <Text style={styles.aiSummaryTitle}>Category Recommendation</Text>
-            <Text style={[styles.aiSummary, { fontWeight: '700', color: theme.text }]}>{aiData.category}</Text>
+            <Text style={[styles.aiSummary, { fontWeight: '700', color: theme.text }]}>
+              {aiData.category}
+            </Text>
 
             <Text style={styles.aiSummaryTitle}>Concise Incident Summary</Text>
             <Text style={styles.aiSummary}>{aiData.summary}</Text>
@@ -389,14 +480,26 @@ export default function NewReportScreen() {
 
         {/* Submit */}
         <TouchableOpacity
-          style={[styles.submitBtn, { opacity: !aiData ? 0.6 : 1 }]}
+          style={[
+            styles.submitBtn,
+            (!description.trim() || isLoading || aiRunning) && { opacity: 0.7 },
+          ]}
           onPress={handleSubmit}
-          disabled={!aiData || isLoading}
+          disabled={isLoading || aiRunning}
+          activeOpacity={0.8}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
+          {isLoading || aiRunning ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ActivityIndicator color="#FFFFFF" size="small" />
+              <Text style={styles.submitBtnText}>
+                {aiRunning ? 'Assessing with AI...' : 'Submitting Report...'}
+              </Text>
+            </View>
           ) : (
-            <Text style={styles.submitBtnText}>Confirm & Submit Report</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <CheckCircle2 size={20} color="#FFFFFF" />
+              <Text style={styles.submitBtnText}>Confirm & Submit Report</Text>
+            </View>
           )}
         </TouchableOpacity>
       </ScrollView>

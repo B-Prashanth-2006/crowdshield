@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Image, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Image, ActivityIndicator } from 'react-native';
+import { Alert } from '@/utils/alert';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useIncidentStore } from '@/store/incident';
 import { useAuthStore } from '@/store/auth';

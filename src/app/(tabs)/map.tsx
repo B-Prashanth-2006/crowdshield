@@ -39,8 +39,8 @@ export default function AlertsMapScreen() {
       inc.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (inc.location_name && inc.location_name.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    // Only display verified or under-review incidents publicly
-    const isPublicStatus = inc.status === 'Verified' || inc.status === 'Under Review' || inc.status === 'Resolved';
+    // Display submitted, verified, under-review or resolved incidents
+    const isPublicStatus = inc.status === 'Submitted' || inc.status === 'Verified' || inc.status === 'Under Review' || inc.status === 'Resolved';
     
     return matchesCategory && matchesUrgency && matchesSearch && isPublicStatus;
   });

@@ -59,9 +59,8 @@ export const useSOSStore = create<SOSState>((set, get) => ({
       // For testing, let's grab user id from useAuthStore
       // It will use current simulation coordinates if not passed
       const { user } = require('./auth').useAuthStore.getState();
-      if (user) {
-        get().triggerSOSDirectly(user.id, get().selectedType);
-      }
+      const userId = user?.id || 'demo-user-id';
+      get().triggerSOSDirectly(userId, get().selectedType);
     } else {
       set({ countdown: current - 1 });
     }
@@ -126,14 +125,18 @@ export const useSOSStore = create<SOSState>((set, get) => ({
   },
 
   resolveSOS: async () => {
-    const active = get().activeSOS;
-    if (!active) return false;
-
-    set({ isLoading: true, error: null });
     if (simulationInterval) {
       clearInterval(simulationInterval);
       simulationInterval = null;
     }
+
+    const active = get().activeSOS;
+    if (!active) {
+      set({ activeSOS: null, isLoading: false });
+      return true;
+    }
+
+    set({ isLoading: true, error: null });
 
     if (isDemoMode) {
       set({ activeSOS: null, isLoading: false });

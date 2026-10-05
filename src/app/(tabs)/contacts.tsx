@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { Alert } from '@/utils/alert';
 import { useContactStore } from '@/store/contacts';
 import { useAuthStore } from '@/store/auth';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
-import { Phone, Mail, UserPlus, Trash2, Send, PhoneCall, Plus } from 'lucide-react-native';
+import { Phone, Mail, UserPlus, Trash2, Send, PhoneCall, Plus, ShieldAlert, Radio } from 'lucide-react-native';
+import { makePhoneCall } from '@/utils/communication';
+import { EmergencyContactActionModal } from '@/components/emergency-contact-action-modal';
+import { EmergencyContact } from '@/types';
 
 export default function ContactsScreen() {
   const theme = useTheme();
@@ -15,6 +19,11 @@ export default function ContactsScreen() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Modal State for calling and SMS
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<EmergencyContact | null>(null);
+  const [isBroadcast, setIsBroadcast] = useState(false);
 
   const handleAdd = async () => {
     if (!name || !phone) {
@@ -38,13 +47,40 @@ export default function ContactsScreen() {
     ]);
   };
 
-  const simulateCall = (contactName: string, phoneNum: string) => {
-    Alert.alert('Emergency Call', `Simulating direct call to ${contactName} (${phoneNum})...`);
+  const handleCallContact = (contact: EmergencyContact) => {
+    Alert.alert(
+      'Emergency Call',
+      `Call ${contact.name} at ${contact.phone}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Call Now',
+          style: 'default',
+          onPress: async () => {
+            await makePhoneCall(contact.phone, contact.name);
+          },
+        },
+      ]
+    );
   };
 
-  const simulateSMS = (contactName: string, phoneNum: string) => {
-    Alert.alert('SMS Dispatch', `SMS safety notification sent to ${contactName} (${phoneNum}):\n\n"CrowdShield Emergency Alert: I need assistance!"`);
+  const handleOpenSMSModal = (contact: EmergencyContact) => {
+    setSelectedContact(contact);
+    setIsBroadcast(false);
+    setModalVisible(true);
   };
+
+  const handleBroadcastAlert = () => {
+    if (contacts.length === 0) {
+      Alert.alert('No Contacts', 'Please add at least one emergency contact to broadcast alerts.');
+      return;
+    }
+    setSelectedContact(null);
+    setIsBroadcast(true);
+    setModalVisible(true);
+  };
+
+  const primaryContact = contacts[0];
 
   const styles = StyleSheet.create({
     container: {
@@ -53,6 +89,7 @@ export default function ContactsScreen() {
     },
     content: {
       padding: Spacing.four,
+      paddingBottom: Spacing.six,
     },
     title: {
       fontSize: 24,
@@ -64,6 +101,63 @@ export default function ContactsScreen() {
       fontSize: 14,
       color: theme.textSecondary,
       marginBottom: Spacing.four,
+      lineHeight: 20,
+    },
+    // Fast Actions Toolbar
+    toolbar: {
+      backgroundColor: theme.backgroundElement,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      padding: Spacing.three,
+      marginBottom: Spacing.four,
+      gap: Spacing.two,
+    },
+    toolbarTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: theme.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 2,
+    },
+    toolbarButtons: {
+      flexDirection: 'row',
+      gap: Spacing.two,
+    },
+    broadcastBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.dangerLight,
+      borderWidth: 1,
+      borderColor: theme.danger,
+      borderRadius: 12,
+      paddingVertical: 12,
+      gap: Spacing.two,
+    },
+    broadcastBtnText: {
+      color: theme.danger,
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    speedDialBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.primaryLight,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      borderRadius: 12,
+      paddingVertical: 12,
+      gap: Spacing.two,
+    },
+    speedDialBtnText: {
+      color: theme.primary,
+      fontSize: 13,
+      fontWeight: '800',
     },
     contactsList: {
       gap: Spacing.three,
@@ -82,16 +176,16 @@ export default function ContactsScreen() {
       marginBottom: Spacing.two,
     },
     avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
       backgroundColor: theme.primaryLight,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: Spacing.three,
     },
     avatarText: {
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: '800',
       color: theme.primary,
     },
@@ -142,12 +236,12 @@ export default function ContactsScreen() {
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 8,
-      paddingVertical: 8,
+      paddingVertical: 10,
       flex: 1,
       gap: Spacing.one,
     },
     actionBtnText: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: '700',
       color: theme.text,
     },
@@ -213,7 +307,7 @@ export default function ContactsScreen() {
       borderColor: theme.primary,
       borderRadius: 12,
       paddingVertical: Spacing.three,
-      marginBottom: Spacing.five,
+      marginBottom: Spacing.four,
       gap: Spacing.two,
     },
     addTriggerBtnText: {
@@ -228,8 +322,36 @@ export default function ContactsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Emergency Contacts</Text>
         <Text style={styles.subtitle}>
-          Add up to 5 family members, friends, or medical providers to alert instantly in case of SOS triggers or missed check-ins.
+          Add up to 5 trusted family members, friends, or providers. Call them directly or dispatch GPS SMS alerts in seconds.
         </Text>
+
+        {/* Quick Emergency Actions Toolbar */}
+        {contacts.length > 0 && (
+          <View style={styles.toolbar}>
+            <Text style={styles.toolbarTitle}>Instant Safety Actions</Text>
+            <View style={styles.toolbarButtons}>
+              <TouchableOpacity
+                style={styles.broadcastBtn}
+                onPress={handleBroadcastAlert}
+                activeOpacity={0.8}
+              >
+                <ShieldAlert size={16} color={theme.danger} />
+                <Text style={styles.broadcastBtnText}>Broadcast SMS ({contacts.length})</Text>
+              </TouchableOpacity>
+
+              {primaryContact && (
+                <TouchableOpacity
+                  style={styles.speedDialBtn}
+                  onPress={() => handleCallContact(primaryContact)}
+                  activeOpacity={0.8}
+                >
+                  <PhoneCall size={16} color={theme.primary} />
+                  <Text style={styles.speedDialBtnText}>Call {primaryContact.name.split(' ')[0]}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Form toggler */}
         {!showAddForm && contacts.length < 5 && (
@@ -243,7 +365,7 @@ export default function ContactsScreen() {
         {showAddForm && (
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>New Emergency Contact</Text>
-            
+
             <View style={styles.inputContainer}>
               <UserPlus size={18} color={theme.textSecondary} />
               <TextInput
@@ -282,12 +404,15 @@ export default function ContactsScreen() {
 
             <View style={{ flexDirection: 'row', gap: Spacing.two }}>
               <TouchableOpacity
-                style={[styles.saveBtn, { flex: 1, backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border }]}
+                style={[
+                  styles.saveBtn,
+                  { flex: 1, backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border },
+                ]}
                 onPress={() => setShowAddForm(false)}
               >
                 <Text style={{ color: theme.text, fontSize: 15, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleAdd}>
                 <Text style={styles.saveBtnText}>Save Contact</Text>
               </TouchableOpacity>
@@ -335,7 +460,8 @@ export default function ContactsScreen() {
                 <View style={styles.cardActions}>
                   <TouchableOpacity
                     style={styles.actionBtn}
-                    onPress={() => simulateCall(item.name, item.phone)}
+                    onPress={() => handleCallContact(item)}
+                    activeOpacity={0.8}
                   >
                     <PhoneCall size={16} color={theme.primary} />
                     <Text style={[styles.actionBtnText, { color: theme.primary }]}>Call</Text>
@@ -343,7 +469,8 @@ export default function ContactsScreen() {
 
                   <TouchableOpacity
                     style={styles.actionBtn}
-                    onPress={() => simulateSMS(item.name, item.phone)}
+                    onPress={() => handleOpenSMSModal(item)}
+                    activeOpacity={0.8}
                   >
                     <Send size={16} color={theme.success} />
                     <Text style={[styles.actionBtnText, { color: theme.success }]}>Alert SMS</Text>
@@ -366,6 +493,24 @@ export default function ContactsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Emergency Contact Action Modal for Call & SMS */}
+      <EmergencyContactActionModal
+        visible={modalVisible}
+        contact={selectedContact}
+        allContacts={contacts}
+        isBroadcast={isBroadcast}
+        alertType="Emergency Contact Alert"
+        onClose={() => setModalVisible(false)}
+        onSuccess={(action, target) => {
+          Alert.alert(
+            action === 'call' ? 'Call Initiated' : 'SMS Ready',
+            action === 'call'
+              ? `Connected to ${target}.`
+              : `Dispatched alert SMS to ${target}.`
+          );
+        }}
+      />
     </SafeAreaView>
   );
 }
